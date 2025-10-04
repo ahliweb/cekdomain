@@ -109,14 +109,14 @@ ensure_tools() {
 extract_expiry_whois() {
   grep -iE 'Registry Expiry Date|Expiry Date|Expiration Date|paid-till|expire' \
     | head -n 1 \
-    | sed -E 's/.*:[[:space:]]*//; s/\r$//'
+    | sed -E 's/^[^:]*:[[:space:]]*//; s/\r$//'
 }
 
 # Parser WHOIS (spesial TLD/registrar), mis. .top menggunakan field Registrar Registration Expiration Date
 extract_expiry_special() {
   grep -iE 'Registrar Registration Expiration Date|Domain Expiration Date|Expiry|Expires On' \
     | head -n 1 \
-    | sed -E 's/.*:[[:space:]]*//; s/\r$//'
+    | sed -E 's/^[^:]*:[[:space:]]*//; s/\r$//'
 }
 
 # Hitung sisa hari dari string tanggal yang bisa dipahami `date -d`
