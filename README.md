@@ -15,6 +15,7 @@ Script Bash untuk memeriksa status domain dan tanggal expired baik **domain inte
 * Mengambil tanggal expired domain via **WHOIS global** atau **PANDI (khusus .id)**.
 * Menampilkan **progress bar + persentase + ETA**.
 * Menyimpan hasil ke file **CSV** dengan format aman (quoted).
+* Parser WHOIS menjaga kolom **Expiry Date** tetap utuh (termasuk jam & zona) untuk domain internasional.
 * Menyimpan log detail ke file **LOG** dengan header & footer.
 * Auto install dependency (`whois`, `dig`, `curl`, `grep`).
 * Highlight otomatis:
@@ -234,7 +235,7 @@ Supported by SatpamSiber.com | AhliWeb.com | AhliWeb.co.id | AhliWeb.my.id
 **CSV aman (quoted)**: `"Domain","Status","Expiry Date","Note"`
 
 * `Status`: `Active`/`Inactive` (untuk `Active` dapat memuat IP pertama, mis. `Active (203.0.113.10)`).
-* `Expiry Date`: ISO‑8601 UTC atau `(N/A)` jika tidak ditemukan.
+* `Expiry Date`: ISO‑8601 UTC lengkap (contoh: `2026-02-21T08:56:22Z`) atau `(N/A)` jika tidak ditemukan.
 * `Note`: `❌ Expired`, `⚠️ Expiring Soon (≤30 hari)`, `✅ OK`, atau penjelasan jika expiry tak ditemukan.
 
 **LOG**:
