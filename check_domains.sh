@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==========================================================
 #   DOMAIN STATUS & EXPIRY CHECKER
-#   (Progress Bar + WHOIS + PANDI + CSV Output + Logging)
+#   (Progress Bar + WHOIS + RDAP PANDI + CSV Output + Logging)
 #
 #   Powered by SatpamSiber.com
 # ==========================================================
 # Fungsi:
 # - Mengecek status domain (.com, .id, .xyz, .top, .online, .site, dll)
 # - Menampilkan apakah domain aktif atau tidak (cek DNS via dig)
-# - Mengambil tanggal expired (WHOIS global atau PANDI untuk .id family)
+# - Mengambil tanggal expired (WHOIS global atau RDAP PANDI untuk .id family)
 # - Menampilkan progress bar + persentase + ETA (selalu finish 100%)
 # - Menyimpan hasil ke file CSV (quoted, anti-terpotong)
 # - Menyimpan log proses ke file LOG (dengan header & footer)
@@ -17,7 +17,7 @@
 #
 # Usage:
 #   ./check_domains.sh        # mode normal
-#   ./check_domains.sh -v     # verbose mode (tampilkan cuplikan WHOIS/PANDI)
+#   ./check_domains.sh -v     # verbose mode (tampilkan cuplikan WHOIS/RDAP)
 # ==========================================================
 
 set -u
@@ -84,17 +84,22 @@ print_progress() {
 }
 
 ensure_tools() {
-  local tools=("whois" "dig" "curl" "grep" "date")
+  local tools=("whois" "dig" "curl" "grep" "date" "python3")
+  local updated=false
   for tool in "${tools[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       echo "⚠️  $tool belum ada. Install dulu..." | tee -a "$LOG_FILE"
-      sudo apt-get update -y
+      if [[ "$updated" == false ]]; then
+        sudo apt-get update -y
+        updated=true
+      fi
       case "$tool" in
         whois) sudo apt-get install -y whois ;;
         dig) sudo apt-get install -y dnsutils ;;
         curl) sudo apt-get install -y curl ;;
         grep) sudo apt-get install -y grep ;;
         date) sudo apt-get install -y coreutils ;;
+        python3) sudo apt-get install -y python3 ;;
       esac
     fi
   done
@@ -112,13 +117,6 @@ extract_expiry_special() {
   grep -iE 'Registrar Registration Expiration Date|Domain Expiration Date|Expiry|Expires On' \
     | head -n 1 \
     | sed -E 's/.*:[[:space:]]*//; s/\r$//'
-}
-
-# Parser PANDI (.id family)
-extract_expiry_pandi() {
-  awk '/Expired Date/ {print}' \
-    | head -n 1 \
-    | sed -E 's/.*Expired Date: *//; s/<.*$//; s/\r$//'
 }
 
 # Hitung sisa hari dari string tanggal yang bisa dipahami `date -d`
@@ -155,7 +153,7 @@ ensure_tools
 TMP_INPUT="$(mktemp)"
 tr -d '\r' < "$INPUT_FILE" > "$TMP_INPUT"
 
-total=$(grep -cve '^\s*$' "$TMP_INPUT")
+total=$(grep -cvE '^\s*(#|$)' "$TMP_INPUT")
 if (( total == 0 )); then
   echo "❌ $INPUT_FILE kosong." | tee -a "$LOG_FILE"
   rm -f "$TMP_INPUT"
@@ -171,7 +169,7 @@ echo "   Repositori https://github.com/ahliweb/cekdomain"
 echo "=================================================="
 echo "📌 Fungsi Script:"
 echo "- Mengecek status aktif/tidak domain"
-echo "- Mengambil tanggal expired WHOIS/PANDI"
+echo "- Mengambil tanggal expired WHOIS/RDAP"
 echo "- Output CSV: $OUTPUT_FILE"
 echo "- Output Log: $LOG_FILE"
 echo "--------------------------------------------------"
@@ -184,8 +182,13 @@ echo '"Domain","Status","Expiry Date","Note"' > "$OUTPUT_FILE"
 start_ts=$(date +%s)
 count=0
 
-while IFS= read -r domain; do
+while IFS= read -r raw_line; do
+  # buang komentar inline & whitespace
+  domain="${raw_line%%#*}"
+  domain="${domain#${domain%%[![:space:]]*}}"
+  domain="${domain%${domain##*[![:space:]]}}"
   [[ -z "$domain" ]] && continue
+  domain_lc="${domain,,}"
   count=$((count+1))
 
   now_ts=$(date +%s)
@@ -207,12 +210,44 @@ while IFS= read -r domain; do
   note=""
 
   # .id family (termasuk .co.id, .or.id, .ac.id, dll) → cukup cek suffix .id
-  if [[ "$domain" == *.id ]]; then
-    logv "➡️  Cek via PANDI: $domain"
-    pandi_html=$(curl -s "https://pandi.id/whois?domain=$domain")
-    logv "$(echo "$pandi_html" | grep -i 'Expired' | head -n 3)"
-    e=$(echo "$pandi_html" | extract_expiry_pandi)
-    [[ -n "$e" ]] && expiry="$e" || expiry="(Cek manual pandi.id/whois)"
+  if [[ "$domain_lc" == *.id ]]; then
+    logv "➡️  Cek via RDAP PANDI: $domain"
+    if pandi_json=$(curl -sf --connect-timeout 10 --max-time 20 -H 'Accept: application/rdap+json' \
+      "https://rdap.pandi.id/rdap/domain/$domain_lc"); then
+      rdap_info=$(PANDI_JSON="$pandi_json" python3 <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["PANDI_JSON"])
+events = data.get("events") or []
+parts = []
+expiry = ""
+for event in events:
+    action = str(event.get("eventAction", "")).strip()
+    date = str(event.get("eventDate", "")).strip()
+    if action:
+        parts.append(f"{action}: {date}")
+    if not expiry and action in {"expiration", "expire"} and date:
+        expiry = date
+
+if parts:
+    print("EVENTS|" + " | ".join(parts[:3]))
+
+print("EXPIRY|" + expiry)
+PY
+)
+      rdap_expiry=$(printf '%s' "$rdap_info" | sed -n 's/^EXPIRY|//p' | head -n 1)
+      log_summary=$(printf '%s' "$rdap_info" | sed -n 's/^EVENTS|//p' | head -n 1)
+      [[ -n "$log_summary" ]] && logv "Events RDAP: $log_summary"
+      if [[ -n "$rdap_expiry" ]]; then
+        expiry="$rdap_expiry"
+      else
+        expiry="(Cek manual pandi.id/whois)"
+      fi
+    else
+      logv "❌ Gagal mengambil RDAP PANDI"
+      expiry="(Cek manual pandi.id/whois)"
+    fi
   else
     logv "➡️  Cek via WHOIS: $domain"
     whois_raw=$(whois "$domain" 2>/dev/null)
