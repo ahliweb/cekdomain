@@ -1,0 +1,9 @@
+# Ignore log and CSV output
+
+*.log
+*.csv
+
+# Ignore system files
+
+.DS_Store
+Thumbs.db
