@@ -111,7 +111,5 @@ Proyek ini dirilis dengan lisensi [MIT](LICENSE).
 ## 🙌 Dukungan & Backlink
 
 Script ini didukung oleh:
-
-🔗 [SatpamSiber.com](https://SatpamSiber.com) | [AhliWeb.com](https://AhliWeb.com) | [AhliWeb.co.id](https://AhliWeb.co.id) | [AhliWeb.my.id](https://AhliWeb.my.id)
-
+🔗 [SatpamSiber.com](https://SatpamSiber.com) | [AhliWeb.com](https://AhliWeb.com) | [AhliWeb.co.id](https://AhliWeb.co.id) |
 ==================================================
