@@ -7,7 +7,9 @@ Powered by [SatpamSiber.com](https://SatpamSiber.com)
 
 Script Bash untuk memeriksa status domain dan tanggal expired baik **domain internasional** (.com, .net, .org, dll) maupun **domain .id** melalui PANDI.
 
-🚀 **Fitur Utama:**
+---
+
+## 🚀 Fitur
 
 * Mengecek status aktif/tidak domain via `dig`.
 * Mengambil tanggal expired domain via **WHOIS global** atau **PANDI (khusus .id)**.
@@ -40,9 +42,9 @@ chmod +x check_domains.sh
 1. Buat file `domains.txt` berisi daftar domain (satu per baris):
 
 ```
-suarabarito.com
-suarabarito.id
-example.org
+ahliweb.com
+ahliweb.id
+ahliweb.co.id
 ```
 
 2. Jalankan script:
@@ -59,43 +61,44 @@ example.org
 
 ---
 
-## 📂 Output
+## 📂 Contoh Output
 
-* **domain-status.csv** → hasil cek domain (dengan kolom `Domain, Status, Expiry Date, Note`)
-* **domain-status.log** → log detail proses, lengkap dengan header & footer
+### `domain-status.csv`
 
-Contoh `domain-status.csv`:
-
-```
+```csv
 "Domain","Status","Expiry Date","Note"
-"suarabarito.com","Active (203.0.113.10)","2026-03-14T04:00:00Z","✅ OK (330 days left)"
-"suarabarito.id","Inactive/No DNS","(Cek manual pandi.id/whois)",""
-"expiredexample.com","Inactive/No DNS","2024-05-02T23:59:59Z","❌ Expired"
+"ahliweb.com","Active (172.67.214.243)","2026-02-21T08:56:22Z","⚠️ Expiring Soon (0 days)"
+"ahliweb.id","Active (76.76.21.21)","(Cek manual pandi.id/whois)",""
+"ahliweb.co.id","Active (172.67.165.161)","(Cek manual pandi.id/whois)",""
 ```
 
-Contoh `domain-status.log`:
+### `domain-status.log`
 
 ```
 ==================================================
    DOMAIN STATUS & EXPIRY CHECKER - LOG FILE
    Powered by SatpamSiber.com
-   Start time : Sun Oct  5 10:15:27 WIB 2025
+   Start time : Sat Oct  4 09:30:33 AM WIB 2025
    Input file : domains.txt
    Output CSV : domain-status.csv
 ==================================================
 
-🔍 Memproses: suarabarito.com
-➡️  Cek via WHOIS: suarabarito.com
-Registry Expiry Date: 2026-03-14T04:00:00Z
+🔍 Memproses: ahliweb.com
+➡️  Cek via WHOIS: ahliweb.com
+Registry Expiry Date: 2026-02-21T08:56:22Z
 
-🔍 Memproses: suarabarito.id
-➡️  Cek via PANDI: suarabarito.id
-Expired Date: 2026-02-28 23:59:59
+🔍 Memproses: ahliweb.id
+➡️  Cek via PANDI: ahliweb.id
+... (hasil parsing PANDI)
+
+🔍 Memproses: ahliweb.co.id
+➡️  Cek via PANDI: ahliweb.co.id
+... (hasil parsing PANDI)
 
 ==================================================
    END OF LOG
-   Finish time : Sun Oct  5 10:16:10 WIB 2025
-   Total domain: 52
+   Finish time : Sat Oct  4 09:30:55 AM WIB 2025
+   Total domain: 3
    Output CSV  : domain-status.csv
 ==================================================
 ```
@@ -111,5 +114,7 @@ Proyek ini dirilis dengan lisensi [MIT](LICENSE).
 ## 🙌 Dukungan & Backlink
 
 Script ini didukung oleh:
-🔗 [SatpamSiber.com](https://SatpamSiber.com) | [AhliWeb.com](https://AhliWeb.com) | [AhliWeb.co.id](https://AhliWeb.co.id) |
+
+🔗 [SatpamSiber.com](https://SatpamSiber.com) | [AhliWeb.com](https://AhliWeb.com) | [AhliWeb.co.id](https://AhliWeb.co.id)
+
 ==================================================
