@@ -1,0 +1,18 @@
+name: cekdomain_cli
+description: CLI cross-platform untuk cek status & expiry domain (WHOIS + RDAP PANDI)
+version: 0.1.0
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+executables:
+  cekdomain: cekdomain
+
+dependencies:
+  args: ^2.5.0
+  csv: ^6.0.0
+  http: ^1.2.2
+  whois: ^3.1.0        # WHOIS general TLD (port 43)
+  dns_client: ^2.0.0   # DNS A/AAAA lookup cross platform
+
+dev_dependencies:
+  lints: ^4.0.0
