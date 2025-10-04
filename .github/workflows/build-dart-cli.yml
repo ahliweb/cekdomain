@@ -1,0 +1,35 @@
+name: Build Dart CLI
+
+on:
+  push:
+    paths:
+      - 'dart-cli/**'
+      - '.github/workflows/build-dart-cli.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: dart-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Pub get
+        run: dart pub get
+      - name: Analyze
+        run: dart analyze
+      - name: Compile exe
+        run: |
+          dart compile exe bin/cekdomain.dart -o build/cekdomain${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cekdomain-${{ matrix.os }}
+          path: dart-cli/build/**
