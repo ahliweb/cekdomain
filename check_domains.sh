@@ -5,6 +5,22 @@
 #
 #   Powered by SatpamSiber.com
 # ==========================================================
+# Fungsi:
+# - Mengecek status domain (.com, .id, .xyz, .top, .online, .site, dll)
+# - Menampilkan apakah domain aktif atau tidak (cek DNS via dig)
+# - Mengambil tanggal expired (WHOIS global atau PANDI untuk .id family)
+# - Menampilkan progress bar + persentase + ETA (selalu finish 100%)
+# - Menyimpan hasil ke file CSV (quoted, anti-terpotong)
+# - Menyimpan log proses ke file LOG (dengan header & footer)
+# - Auto install dependency (whois, dig, curl, grep, coreutils/date) bila belum ada
+# - Highlight otomatis: ❌ Expired | ⚠️ Expiring Soon (≤30 hari) | ✅ OK
+#
+# Usage:
+#   ./check_domains.sh        # mode normal
+#   ./check_domains.sh -v     # verbose mode (tampilkan cuplikan WHOIS/PANDI)
+# ==========================================================
+
+set -u
 
 INPUT_FILE="domains.txt"
 OUTPUT_FILE="domain-status.csv"
@@ -39,7 +55,7 @@ logv() {
 fmt_duration() {
   local T=$1
   local H=$((T/3600))
-  local M=$(( (T%3600)/60 ))
+  local M=$(((T%3600)/60))
   local S=$((T%60))
   if (( H > 0 )); then
     printf "%02d:%02d:%02d" "$H" "$M" "$S"
@@ -84,18 +100,28 @@ ensure_tools() {
   done
 }
 
+# Parser WHOIS (standar)
 extract_expiry_whois() {
   grep -iE 'Registry Expiry Date|Expiry Date|Expiration Date|paid-till|expire' \
     | head -n 1 \
     | sed -E 's/.*:[[:space:]]*//; s/\r$//'
 }
 
+# Parser WHOIS (spesial TLD/registrar), mis. .top menggunakan field Registrar Registration Expiration Date
+extract_expiry_special() {
+  grep -iE 'Registrar Registration Expiration Date|Domain Expiration Date|Expiry|Expires On' \
+    | head -n 1 \
+    | sed -E 's/.*:[[:space:]]*//; s/\r$//'
+}
+
+# Parser PANDI (.id family)
 extract_expiry_pandi() {
   awk '/Expired Date/ {print}' \
     | head -n 1 \
     | sed -E 's/.*Expired Date: *//; s/<.*$//; s/\r$//'
 }
 
+# Hitung sisa hari dari string tanggal yang bisa dipahami `date -d`
 days_left() {
   local expiry_date="$1"
   if exp_epoch=$(date -d "$expiry_date" +%s 2>/dev/null); then
@@ -104,11 +130,12 @@ days_left() {
     echo ""
     return
   fi
-  now_epoch=$(date +%s)
-  diff_days=$(( (exp_epoch - now_epoch) / 86400 ))
+  local now_epoch=$(date +%s)
+  local diff_days=$(( (exp_epoch - now_epoch) / 86400 ))
   echo "$diff_days"
 }
 
+# Escape CSV -> quote semua kolom dan escape tanda kutip
 csv_escape() {
   local s="$1"
   s="${s//\"/\"\"}"
@@ -135,7 +162,7 @@ if (( total == 0 )); then
   exit 1
 fi
 
-# Info awal
+# Info awal di layar
 echo "=================================================="
 echo "   DOMAIN STATUS & EXPIRY CHECKER"
 echo "   Powered by SatpamSiber.com"
@@ -149,8 +176,8 @@ echo "--------------------------------------------------"
 echo "📊 Jumlah domain yang akan dicek: $total"
 echo "=================================================="
 
-# Header CSV
-echo "\"Domain\",\"Status\",\"Expiry Date\",\"Note\"" > "$OUTPUT_FILE"
+# Header CSV (quoted)
+echo '"Domain","Status","Expiry Date","Note"' > "$OUTPUT_FILE"
 
 start_ts=$(date +%s)
 count=0
@@ -165,6 +192,7 @@ while IFS= read -r domain; do
 
   logv "\n🔍 Memproses: $domain"
 
+  # Cek DNS
   ip=$(dig +short "$domain")
   if [[ -z "$ip" ]]; then
     status="Inactive/No DNS"
@@ -176,6 +204,7 @@ while IFS= read -r domain; do
   expiry="Unknown"
   note=""
 
+  # .id family (termasuk .co.id, .or.id, .ac.id, dll) → cukup cek suffix .id
   if [[ "$domain" == *.id ]]; then
     logv "➡️  Cek via PANDI: $domain"
     pandi_html=$(curl -s "https://pandi.id/whois?domain=$domain")
@@ -185,11 +214,19 @@ while IFS= read -r domain; do
   else
     logv "➡️  Cek via WHOIS: $domain"
     whois_raw=$(whois "$domain" 2>/dev/null)
-    logv "$(echo "$whois_raw" | grep -iE 'Expiry|paid|expire' | head -n 5)"
+    logv "$(echo "$whois_raw" | grep -iE 'Expiry|Expiration|paid|expire' | head -n 5)"
+
+    # Parser standar
     e=$(echo "$whois_raw" | extract_expiry_whois)
+    # Fallback parser spesial (untuk .top, .xyz, .online, .site, dll)
+    if [[ -z "$e" ]]; then
+      e=$(echo "$whois_raw" | extract_expiry_special)
+    fi
+
     [[ -n "$e" ]] && expiry="$e" || expiry="Unknown"
   fi
 
+  # Tentukan note highlight
   if [[ "$expiry" != "Unknown" && "$expiry" != "(Cek manual pandi.id/whois)" ]]; then
     dleft=$(days_left "$expiry")
     if [[ -n "$dleft" ]]; then
@@ -203,11 +240,20 @@ while IFS= read -r domain; do
     fi
   fi
 
+  # Tulis CSV (quoted)
   d_q=$(csv_escape "$domain")
   s_q=$(csv_escape "$status")
   e_q=$(csv_escape "$expiry")
   n_q=$(csv_escape "$note")
   printf "%s,%s,%s,%s\n" "$d_q" "$s_q" "$e_q" "$n_q" >> "$OUTPUT_FILE"
+
+  # throttle ringan (hindari rate-limit registrar WHOIS)
+  sleep 0.3
+
+  # Update progress
+  now_ts=$(date +%s)
+  elapsed=$(( now_ts - start_ts ))
+  print_progress "$count" "$total" "$elapsed"
 
 done < "$TMP_INPUT"
 
